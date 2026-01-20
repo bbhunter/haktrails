@@ -8,17 +8,13 @@ import (
         "strings"
 )
 
-// get a response from an endpoint as a string
 func getResponse(method string, url string, postBody string) string {
-        for {
-                response, status := tryRequest(method, url, postBody)
-                errorEncountered, message := checkJSONError(response, status)
-                if errorEncountered {
-                        return "JSON error: " + message
-                } else {
-                        return string(response)
-                }
+        response, status := tryRequest(method, url, postBody)
+        errorEncountered, message := checkJSONError(response, status)
+        if errorEncountered {
+                return "API error: " + message
         }
+        return response
 }
 
 func tryRequest(method string, url string, postBody string) (string, int) {
@@ -47,12 +43,23 @@ func tryRequest(method string, url string, postBody string) (string, int) {
         return string(body), resp.StatusCode
 }
 
-// Checks for {"message":"API rate limit exceeded"} or similar
 func checkJSONError(body string, status int) (bool, string) {
+        if status < 200 || status >= 300 {
+                var results map[string]string
+                err := json.Unmarshal([]byte(body), &results)
+                if err == nil && results["message"] != "" {
+                        return true, results["message"]
+                }
+                return true, body
+        }
+
         var results map[string]string
         err := json.Unmarshal([]byte(body), &results)
-        if (err != nil && status == 200) {
+        if err != nil {
                 return false, ""
         }
-        return true, results["message"]
+        if results["message"] != "" {
+                return true, results["message"]
+        }
+        return false, ""
 }
